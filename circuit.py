@@ -3,7 +3,6 @@ import hashlib
 import numpy as np
 from random import choice
 from collections import defaultdict, deque
-from truth_tables import get_truth_table
 from util import nearestPowerOfTwo
 from polynomial_evalrep import RowDictSparseMatrix
 from ssbls12 import Fp
@@ -22,6 +21,17 @@ The last `num_outputs` number of labels to the circuit are outputs
 of the circuit
 
 """
+
+tables = {
+    "XOR": [0, 1, 1, 0],
+    "AND": [0, 0, 0, 1],
+    "INV": [1, None, 0, None],
+}
+
+
+def get_truth_table(gate, index):
+    return tables[gate][index]
+
 
 # TOOD: Currently only supports XOR, AND and INV(NOT) gates
 class BooleanCircuit(object):
@@ -143,11 +153,13 @@ class BooleanCircuit(object):
     """
     Set the inputs of the circuit to random bits 0 or 1
     """
+
     def get_random_inputs(self):
         inputs = {}
         for i in self.input_wires:
             inputs[i] = choice([1, 0])
         return inputs
+
     """
     This is custom get_index function which is faster than calling 
     arr.index. We abuse this because we know the structure of the array
@@ -156,6 +168,7 @@ class BooleanCircuit(object):
     Next are statements (which is last in our circuit representation)
     Finally, we have witness
     """
+
     def get_index(self, wire_id):
         if wire_id in self.output_wires:
             return self.output_wires.index(wire_id) + 1
@@ -266,7 +279,6 @@ class BooleanCircuit(object):
         assert len(a_final) == 1 + len(self.wire_values)
         # Returns a tuple with number of public inputs, a_vec and U
         return (1 + len(self.statements_wires), a_final, U)
-
 
     # Precondition: initialized, topologically sort
     # Postcondition: self.wire_values takes on values resulting from this evaluation
