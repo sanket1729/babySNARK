@@ -65,4 +65,14 @@ def test_sha256():
     print(python_lib_hash)
     print(circuit_hash)
     assert python_lib_hash == circuit_hash
+
+
+    c.compile_to_solved_ssp(inputs, make_square= True)
+
+    python_lib_hash = hashlib.sha256(b"Hello").hexdigest()
+    circuit_hash = get_sha2_output(c)
+
+    print(python_lib_hash)
+    print(circuit_hash)
+    assert python_lib_hash == circuit_hash
     # print(("Output:", output))
