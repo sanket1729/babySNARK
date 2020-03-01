@@ -265,10 +265,13 @@ class RowDictSparseMatrix():
         self.n = n
         self.shape = (m,n)
         self.zero = zero
+        self._len = 0
         self.rowdicts = [dict() for _ in range(m)]
 
     def __setitem__(self, key, v):
         i, j = key
+        if j not in rowdicts[i]:
+            self._len += 1
         self.rowdicts[i][j] = v
 
     def __getitem__(self, key):
@@ -299,6 +302,9 @@ class RowDictSparseMatrix():
         return mat
 
     def __repr__(self): return repr(self.rowdicts)
+
+    def __len__(self):
+        return self._len
 
 #-
 # Examples
