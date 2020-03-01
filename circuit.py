@@ -3,7 +3,7 @@ import hashlib
 import numpy as np
 from random import choice
 from collections import defaultdict, deque
-from util import nearestPowerOfTwo
+from util import nearestPowerOfTwo, isPowerOfTwo
 from polynomial_evalrep import RowDictSparseMatrix
 from ssbls12 import Fp
 
@@ -182,7 +182,7 @@ class BooleanCircuit(object):
     Parameters: Input dictionary to the wires with values
     """
 
-    def compile_to_solved_ssp(self, inp):
+    def compile_to_solved_ssp(self, inp, make_square=False):
 
         # Evaluate the circuit to process the values of all gates
         # from the inputs
@@ -197,6 +197,11 @@ class BooleanCircuit(object):
         m = len(a_vec) - 1 + len(self.sorted_gates)
         m = nearestPowerOfTwo(m)
         n = len(a_vec)
+
+        # Make the matrix into a square matrix if desired
+        # In our system variables, we simply add values to the
+        if make_square:
+            n = m
         U = RowDictSparseMatrix(m, n)
 
         constraint_index = 0
@@ -264,7 +269,7 @@ class BooleanCircuit(object):
                 U[constraint_index, 0] = Fp(-1)
             else:
                 raise Exception(
-                    "We don't support any other gate than NAND/OR/AND/XOR/INV for now"
+                    "We don't support any other gate thgan NAND/OR/AND/XOR/INV for now"
                 )
             constraint_index += 1
 
@@ -273,10 +278,20 @@ class BooleanCircuit(object):
         while constraint_index < U.m:
             U[constraint_index, 0] = Fp(1)
             constraint_index += 1
+
         # create the final witness with values in it
         # The first value is 1, others are according to the evaluated circuit
         a_final = [1] + [self.wire_values[a_vec[i]] for i in range(1, len(a_vec))]
-        assert len(a_final) == 1 + len(self.wire_values)
+
+        if make_square:
+            n_prev = len(a_final)
+            a_final = a_final + [0 for i in range(n_prev, U.m)]
+
+            assert (
+                isPowerOfTwo(len(a_final)) and isPowerOfTwo(U.m) and isPowerOfTwo(U.n)
+            )
+        else:
+            assert len(a_final) == 1 + len(self.wire_values)
         # Returns a tuple with number of public inputs, a_vec and U
         return (1 + len(self.statements_wires), a_final, U)
 
