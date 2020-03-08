@@ -93,7 +93,7 @@ def polynomialsEvalRep(field, omega, n):
             for x in xs:
                 assert x in _powers
             for y in ys:
-                assert type(y) is field
+                assert type(y) is field, type(y)
 
             self.evalmap = dict(zip(xs, ys))
 
@@ -294,6 +294,10 @@ class RowDictSparseMatrix:
             for j, v in self.rowdicts[i].items():
                 yield (i, j), v
 
+    def rows(self):
+        for i in range(self.m):
+            yield self.rowdicts[i]
+
     def dot(self, other):
         if isinstance(other, np.ndarray):
             assert other.dtype == "O"
@@ -317,6 +321,7 @@ class RowDictSparseMatrix:
 
     def num_non_zero_elems(self):
         return self._len
+
 
 # Examples
 if __name__ == "__main__":

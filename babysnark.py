@@ -1,58 +1,62 @@
-#| # Baby SNARK (do do dodo dodo)
-#| _A simple but expressive SNARK._
-#|
-#| This is a self-contained development of SNARKs for NP. It is based on
-#| [Square Span Program SNARKs](https://eprint.iacr.org/2014/718) by Danezis et al.,
-#| which are expressive enough to encode boolean circuits.
-#|
-#| For detail about the algorithm, especially its security definition and soundness,
-#| proof, see [the acompanying paper](https://github.com/initc3/babySNARK/blob/master/babysnark.pdf)
-#|
-#| This implementation in this file is optimized for readability and simplicity, not
-#| performance. The result is that the proof is succinct, but the computation overhead
-#| of `Setup` and `Prove` is quadratic in the circuit size, rather than quasilinear.
-#| In `babysnark_opt.py` you can find a quasilinear implementation.
+# | # Baby SNARK (do do dodo dodo)
+# | _A simple but expressive SNARK._
+# |
+# | This is a self-contained development of SNARKs for NP. It is based on
+# | [Square Span Program SNARKs](https://eprint.iacr.org/2014/718) by Danezis et al.,
+# | which are expressive enough to encode boolean circuits.
+# |
+# | For detail about the algorithm, especially its security definition and soundness,
+# | proof, see [the acompanying paper](https://github.com/initc3/babySNARK/blob/master/babysnark.pdf)
+# |
+# | This implementation in this file is optimized for readability and simplicity, not
+# | performance. The result is that the proof is succinct, but the computation overhead
+# | of `Setup` and `Prove` is quadratic in the circuit size, rather than quasilinear.
+# | In `babysnark_opt.py` you can find a quasilinear implementation.
 
-#| ## Polynomials library
-#| We start with a library, `finite_field/`, for polynomials over finite fields,
-#| represented by coefficients. The library includes:
-#|  - Constructing a polynomial from a list of coefficients
-#|  - Addition, scaling, multiplication of polynomials
-#|  - Euclidean division of polynomials
-#|  - Lagrange interpolation of polynomials
-#|
-#| The library is adapted from tutorials by Jeremy Kun.
-#| See [A Programmer's Introudction to Mathematics](https://github.com/pim-book/programmers-introduction-to-mathematics)
-#| and [Programming with Finite Fields](https://jeremykun.com/2014/03/13/programming-with-finite-fields/)
+# | ## Polynomials library
+# | We start with a library, `finite_field/`, for polynomials over finite fields,
+# | represented by coefficients. The library includes:
+# |  - Constructing a polynomial from a list of coefficients
+# |  - Addition, scaling, multiplication of polynomials
+# |  - Euclidean division of polynomials
+# |  - Lagrange interpolation of polynomials
+# |
+# | The library is adapted from tutorials by Jeremy Kun.
+# | See [A Programmer's Introudction to Mathematics](https://github.com/pim-book/programmers-introduction-to-mathematics)
+# | and [Programming with Finite Fields](https://jeremykun.com/2014/03/13/programming-with-finite-fields/)
 from finitefield.finitefield import FiniteField
 from finitefield.polynomial import polynomialsOver
 
 # Example: Fp(53)
-Fp = FiniteField(53,1)
+Fp = FiniteField(53, 1)
 Poly = polynomialsOver(Fp)
 
+
 def _polydemo():
-    p1 = Poly([1,2,3,4,5])
+    p1 = Poly([1, 2, 3, 4, 5])
     # print(p1)
     # 1 + 2 t + 3 t^2 + 4 t^3 + 5 t^5
+
+
 _polydemo()
 
-#| ## Choosing a field and pairing-friendly elliptic curve
-#| We need to define a finite field to work with, that corresponds to the order
-#| of a pairing-friendly curve.
-#| To keep notation down to a minimum, BabySNARK is defined for a symmetric (Type-1)
-#| elliptic curve group, that is $pair : G \times G \rightarrow G_T$.
-#| However, since the most readily available curve, `bls12-381`, is asymmetric (Type-3),
-#| we write an adaptor for it. See `py_ecc/` and `ssbls12.py` for details.
+# | ## Choosing a field and pairing-friendly elliptic curve
+# | We need to define a finite field to work with, that corresponds to the order
+# | of a pairing-friendly curve.
+# | To keep notation down to a minimum, BabySNARK is defined for a symmetric (Type-1)
+# | elliptic curve group, that is $pair : G \times G \rightarrow G_T$.
+# | However, since the most readily available curve, `bls12-381`, is asymmetric (Type-3),
+# | we write an adaptor for it. See `py_ecc/` and `ssbls12.py` for details.
 from ssbls12 import Fp, Poly, Group
+
 G = Group.G
 GT = Group.GT
 
-#| ## Choosing the evaluation domain
-#| Define some canonical roots $r_1,...,r_m$. These are public parameters
-#| and can be set arbitrarily, and in particular they don't depend on the
-#| circuit (though there must be enough of them to represent the problem
-#| instance).
+# | ## Choosing the evaluation domain
+# | Define some canonical roots $r_1,...,r_m$. These are public parameters
+# | and can be set arbitrarily, and in particular they don't depend on the
+# | circuit (though there must be enough of them to represent the problem
+# | instance).
 # This is a global value.
 # Initializing it to 1,2,...,128 is enough for small examples in this file.
 # We'll overwrite it in `babysnark_setup` when a larger constraint system
@@ -61,8 +65,8 @@ GT = Group.GT
 ROOTS = [Fp(i) for i in range(128)]
 
 
-#| Here we define the vanishing polynomial, which is a degree-$m$ polynomial
-#| that roots at the $m$ distinct locations given.
+# | Here we define the vanishing polynomial, which is a degree-$m$ polynomial
+# | that roots at the $m$ distinct locations given.
 def vanishing_poly(S):
     """
     args: 
@@ -76,27 +80,27 @@ def vanishing_poly(S):
     return p
 
 
-#| ## Square Constraint Systems
-#| We'll represent square constraint systems using matrix-vector
-#| multiplication.
-#|
-#| The constraint system itself is defined by:
-#| - `U`$~~$  (an `m` $\times$ `n`  matrix)
-#|
-#| The witness (including the statement)
-#| - `a`$~~$   (an `n` vector)
-#|
-#| The statement is:
-#| - `a_stmt`    (an `n_stmt` size vector, where `n_stmt`<`n`)
-#|
-#| The predicate to prove is:
-#| - $(\!$ `U` $\!\cdot\!$ `a` $\!)^2 = 1$
-#| - `a[:n_stmt]`$ = $`a_stmt`
-#|
-#| The code below generates approximately random instances of Square
-#| Constraint Systems with a known solution. We'll use these for
-#| tests and examples, though in reality the problem instances would
-#| be generated from a circuit.
+# | ## Square Constraint Systems
+# | We'll represent square constraint systems using matrix-vector
+# | multiplication.
+# |
+# | The constraint system itself is defined by:
+# | - `U`$~~$  (an `m` $\times$ `n`  matrix)
+# |
+# | The witness (including the statement)
+# | - `a`$~~$   (an `n` vector)
+# |
+# | The statement is:
+# | - `a_stmt`    (an `n_stmt` size vector, where `n_stmt`<`n`)
+# |
+# | The predicate to prove is:
+# | - $(\!$ `U` $\!\cdot\!$ `a` $\!)^2 = 1$
+# | - `a[:n_stmt]`$ = $`a_stmt`
+# |
+# | The code below generates approximately random instances of Square
+# | Constraint Systems with a known solution. We'll use these for
+# | tests and examples, though in reality the problem instances would
+# | be generated from a circuit.
 
 # Use numpy to provide element-wise operations and fancy indexing
 import numpy as np
@@ -104,10 +108,12 @@ import random
 
 # Generate random problem instances
 def random_fp():
-    return Fp(random.randint(0, Fp.p-1))
+    return Fp(random.randint(0, Fp.p - 1))
+
 
 def random_matrix(m, n):
     return np.array([[random_fp() for _ in range(n)] for _ in range(m)])
+
 
 def generate_solved_instance(m, n):
     """
@@ -121,21 +127,22 @@ def generate_solved_instance(m, n):
     # Normalize U to satisfy constraints
     Ua2 = U.dot(a) * U.dot(a)
     for i in range(m):
-        U[i,:] /= Ua2[i].sqrt()
+        U[i, :] /= Ua2[i].sqrt()
 
-    assert((U.dot(a) * U.dot(a) == 1).all())
+    assert (U.dot(a) * U.dot(a) == 1).all()
     return U, a
 
-#-
+
+# -
 # Example
 U, a = generate_solved_instance(10, 12)
 # print(U)
 
 
-#| # Baby Snark
-#|
-#| Here we define the Setup, Prover, and Verifier. Follow along with
-#| the pseudocode from the [accompanying writeup](https://github.com/initc3/babySNARK/blob/master/babysnark.pdf)
+# | # Baby Snark
+# |
+# | Here we define the Setup, Prover, and Verifier. Follow along with
+# | the pseudocode from the [accompanying writeup](https://github.com/initc3/babySNARK/blob/master/babysnark.pdf)
 
 
 # Evaluate a polynomial in exponent
@@ -144,11 +151,14 @@ def evaluate_in_exponent(powers_of_tau, poly):
     #    [G*0, G*tau, ...., G*(tau**m)]
     # poly:
     #    degree-m bound polynomial in coefficient form
-    print('P.degree:', poly.degree())
-    print('taus:', len(powers_of_tau))
-    assert poly.degree()+1 < len(powers_of_tau)
-    return sum([powers_of_tau[i] * poly.coefficients[i] for i in
-                range(poly.degree()+1)], G*0)
+    print("P.degree:", poly.degree())
+    print("taus:", len(powers_of_tau))
+    assert poly.degree() + 1 < len(powers_of_tau)
+    return sum(
+        [powers_of_tau[i] * poly.coefficients[i] for i in range(poly.degree() + 1)],
+        G * 0,
+    )
+
 
 # Setup
 def babysnark_setup(U, n_stmt):
@@ -161,18 +171,20 @@ def babysnark_setup(U, n_stmt):
         ROOTS = tuple(range(m))
 
     # Generate polynomials u from columns of U
-    Us = [Poly.interpolate(ROOTS[:m], U[:,k]) for k in range(n)]
+    Us = [Poly.interpolate(ROOTS[:m], U[:, k]) for k in range(n)]
 
     # Trapdoors
     global tau, beta, gamma
-    tau   = random_fp()
-    beta  = random_fp()
+    tau = random_fp()
+    beta = random_fp()
     gamma = random_fp()
 
     # CRS elements
-    CRS = [G * (tau ** i) for i in range(m+1)] + \
-          [G * gamma, G * (beta * gamma)] + \
-          [G * (beta * Ui(tau)) for Ui in Us[n_stmt:]]
+    CRS = (
+        [G * (tau ** i) for i in range(m + 1)]
+        + [G * gamma, G * (beta * gamma)]
+        + [G * (beta * Ui(tau)) for Ui in Us[n_stmt:]]
+    )
 
     # Precomputation
     # Note: This is not considered part of the trusted setup, since it
@@ -197,8 +209,8 @@ def babysnark_prover(U, n_stmt, CRS, precomp, a):
     assert len(ROOTS) >= m
 
     # Parse the CRS
-    taus = CRS[:m+1]
-    bUis = CRS[-(n-n_stmt):]
+    taus = CRS[: m + 1]
+    bUis = CRS[-(n - n_stmt) :]
 
     Uis, T = precomp
 
@@ -208,7 +220,7 @@ def babysnark_prover(U, n_stmt, CRS, precomp, a):
     # 1. Find the polynomial p(X)
 
     # Convert the basis polynomials Us to coefficient form by interpolating
-    Us = [Poly.interpolate(ROOTS[:m], U[:,k]) for k in range(n)]
+    Us = [Poly.interpolate(ROOTS[:m], U[:, k]) for k in range(n)]
 
     # First compute v
     v = Poly([])
@@ -226,11 +238,11 @@ def babysnark_prover(U, n_stmt, CRS, precomp, a):
     H = evaluate_in_exponent(taus, h)
 
     # 3. Compute the Vw terms, using precomputed Uis
-    Vw = sum([Uis[k] * a[k] for k in range(n_stmt, n)], G*0)
+    Vw = sum([Uis[k] * a[k] for k in range(n_stmt, n)], G * 0)
     # assert G * vw(tau) == Vw
 
     # 4. Compute the Bw terms
-    Bw = sum([bUis[k-n_stmt] * a[k] for k in range(n_stmt, n)], G*0)
+    Bw = sum([bUis[k - n_stmt] * a[k] for k in range(n_stmt, n)], G * 0)
     # assert G * (beta * vw(tau)) == Bw
 
     # V = G * v(tau)
@@ -250,23 +262,23 @@ def babysnark_verifier(U, CRS, precomp, a_stmt, pi):
     n_stmt = len(a_stmt)
 
     # Parse the CRS
-    taus = CRS[:m+1]
-    gamma = CRS[m+1]
-    gammabeta = CRS[m+2]
-    bUis = CRS[-(n-n_stmt):]
-    
+    taus = CRS[: m + 1]
+    gamma = CRS[m + 1]
+    gammabeta = CRS[m + 2]
+    bUis = CRS[-(n - n_stmt) :]
+
     Uis, T = precomp
-    
+
     # Compute Vs and V = Vs + Vw
     Vs = sum([Uis[k] * a_stmt[k] for k in range(n_stmt)], G * 0)
     V = Vs + Vw
 
     # Check 1
-    print('Checking (1)')
+    print("Checking (1)")
     assert Bw.pair(gamma) == Vw.pair(gammabeta)
 
     # Check 2
-    print('Checking (2)')
+    print("Checking (2)")
     # print('GT', GT)
     # print('V:', V)
     # print('H.pair(T) * GT:', H.pair(T) * GT)
@@ -275,18 +287,19 @@ def babysnark_verifier(U, CRS, precomp, a_stmt, pi):
 
     return True
 
-#-
-if __name__ == '__main__':
+
+# -
+if __name__ == "__main__":
     # Sample a problem instance
     print("Generating a Square Span Program instance")
     n_stmt = 4
-    m,n = (16, 6)
+    m, n = (16, 6)
     U, a = generate_solved_instance(m, n)
     a_stmt = a[:n_stmt]
-    print('U:', repr(U))
-    print('a_stmt:', a_stmt)
-    print('nonzero in U:', np.sum(U == Fp(0)))
-    print('m x n:', m * n)
+    print("U:", repr(U))
+    print("a_stmt:", a_stmt)
+    print("nonzero in U:", np.sum(U == Fp(0)))
+    print("m x n:", m * n)
 
     # Setup
     print("Computing Setup...")

@@ -1,7 +1,9 @@
 import sys, os
-sys.path.append(os.path.realpath(os.path.dirname(__file__)+"/.."))
+
+sys.path.append(os.path.realpath(os.path.dirname(__file__) + "/.."))
 from circuit import BooleanCircuit
 import hashlib
+
 # Sha 256 specific padding
 def sha2_padding(inp):
     calc_fill = len(inp)
@@ -57,7 +59,8 @@ def test_sha256():
     for i in range(0, 512):
         inputs[i] = int(y[i])
     assert len(inputs) == len(c.input_wires)
-    c.compile_to_solved_ssp(inputs)
+    n_stmt, U = c.compile_to_unsolved_ssp()
+    c.solve_ssp_instance(inputs, U)
 
     python_lib_hash = hashlib.sha256(b"Hello").hexdigest()
     circuit_hash = get_sha2_output(c)
@@ -66,8 +69,8 @@ def test_sha256():
     print(circuit_hash)
     assert python_lib_hash == circuit_hash
 
-
-    c.compile_to_solved_ssp(inputs, make_square= True)
+    n_stmt, U = c.compile_to_unsolved_ssp(make_square= True)
+    c.solve_ssp_instance(inputs, U)
 
     python_lib_hash = hashlib.sha256(b"Hello").hexdigest()
     circuit_hash = get_sha2_output(c)

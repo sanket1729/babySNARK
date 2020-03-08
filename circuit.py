@@ -52,6 +52,9 @@ class BooleanCircuit(object):
         self.wires = []
 
         self.wire_values = {}
+        self.U = None
+        self.a = None
+        self.make_square = False
 
         with open(file_name, "r") as f:
             line_count = 0
@@ -160,6 +163,7 @@ class BooleanCircuit(object):
             inputs[i] = choice([1, 0])
         return inputs
 
+
     """
     This is custom get_index function which is faster than calling 
     arr.index. We abuse this because we know the structure of the array
@@ -182,16 +186,13 @@ class BooleanCircuit(object):
     Parameters: Input dictionary to the wires with values
     """
 
-    def compile_to_solved_ssp(self, inp, make_square=False):
-
-        # Evaluate the circuit to process the values of all gates
-        # from the inputs
-        self.evaluate(inp)
+    def compile_to_unsolved_ssp(self, make_square=False):
 
         # Preprocess the wires into the list of the desired form
         # We want all the wires for which we have inputs to be first
         # Recall a_vec = [1 a_stmt a_witness]
         a_vec = self.convert_wires_to_a_vec()
+        self.make_square = make_square
 
         # Store U in sparse form
         m = len(a_vec) - 1 + len(self.sorted_gates)
@@ -213,12 +214,7 @@ class BooleanCircuit(object):
                 # number of rows per column is len(wires) + 1
                 U[constraint_index, wire_index] = Fp(2)
                 U[constraint_index, 0] = Fp(-1)
-            else:
-                # The wire must have some fixed value
-                U[constraint_index, wire_index] = Fp(1)
-                # force w_i to the correct value
-                U[constraint_index, 0] = Fp(1 - self.wire_values[wire_label])
-            constraint_index = constraint_index + 1
+                constraint_index = constraint_index + 1
 
         # Now add constraints per type of gate
         for gid in self.sorted_gates:
@@ -279,21 +275,43 @@ class BooleanCircuit(object):
             U[constraint_index, 0] = Fp(1)
             constraint_index += 1
 
+        # Returns a tuple with number of public inputs and U
+        self.U = U
+        return 1 + len(self.statements_wires), U
+
+    """
+    This function would 
+    1) solve the ssp with inputs to the circuit.
+    2) Compute all the intermidiate values with ssp
+    3) Calculate the final stmt values and
+    4) Populate the a_vector
+    Returns the final `a` vector with statments and witness values
+    """
+    def solve_ssp_instance(self, inp, U):
+        # Evaluate the circuit to process the values of all gates
+        # from the inputs
+        if U is None:
+            raise Exception("Create a U matrix from compile_to_unsolved_ssp first")
+        self.evaluate(inp)
+        a_vec = self.convert_wires_to_a_vec()
         # create the final witness with values in it
         # The first value is 1, others are according to the evaluated circuit
-        a_final = [1] + [self.wire_values[a_vec[i]] for i in range(1, len(a_vec))]
+        a_final = [Fp(1)] + [Fp(self.wire_values[a_vec[i]]) for i in range(1, len(a_vec))]
 
-        if make_square:
+        if self.make_square:
             n_prev = len(a_final)
-            a_final = a_final + [0 for i in range(n_prev, U.m)]
+            a_final = a_final + [Fp(0) for i in range(n_prev, U.m)]
 
             assert (
                 isPowerOfTwo(len(a_final)) and isPowerOfTwo(U.m) and isPowerOfTwo(U.n)
             )
         else:
             assert len(a_final) == 1 + len(self.wire_values)
-        # Returns a tuple with number of public inputs, a_vec and U
-        return (1 + len(self.statements_wires), a_final, U)
+
+        return (1 + len(self.statements_wires), a_final) 
+
+
+
 
     # Precondition: initialized, topologically sort
     # Postcondition: self.wire_values takes on values resulting from this evaluation

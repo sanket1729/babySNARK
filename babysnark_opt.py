@@ -265,7 +265,8 @@ if __name__ == "__main__":
         # Calculating the entire circuit using random inputs
         # Use the output as the statement, all other wires as witness
         inputs = c.get_random_inputs()
-        n_stmt, a, U = c.compile_to_solved_ssp(inputs)
+        U = c.compile_to_unsolved_ssp()
+        n_stmt, a = c.solve_ssp_instance(inputs, U)
 
     print("\n\n\n")
     a_stmt = a[:n_stmt]
