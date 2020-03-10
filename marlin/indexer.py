@@ -16,11 +16,25 @@ from polynomial_evalrep import get_omega, polynomialsEvalRep, RowDictSparseMatri
 
 
 """
+Evaluate the derivate polynomial of domain at x
+u_S(X, X) = |S|*X**(|S|−1)
+requires only log(|S|) time to evaluate.
+"""
+
+
+def eval_derivate_poly(domain, x):
+    assert type(x) is Fp
+    return Fp(len(domain)) * x ** (len(domain) - 1)
+
+
+"""
 Offline Indexer for Marlin
 """
+
+
 class Indexer:
-    def __init__(self, circuit, universal_srs):
-        self.universal_srs = universal_srs
+    def __init__(self, circuit, pc):
+        self.pc = pc
         # Calculating the entire circuit using random inputs
         # Use the output as the statement, all other wires as witness
         inputs = circuit.get_random_inputs()
@@ -64,10 +78,14 @@ class Indexer:
         for i, rowdict in enumerate(self.U.rows()):
             row_val = domain_h[i]
             for index in sorted(rowdict.keys()):
-                col_val = reindex_by_subdomain(index, domain_h, domain_x)
+                col_val = domain_h[reindex_by_subdomain(index, domain_h, domain_x)]
                 val = rowdict[index]
                 row_vec.append(row_val)
-                col_vec.append(Fp(col_val))
+                col_vec.append(col_val)
+                val = val / (
+                    eval_derivate_poly(domain_h, row_val)
+                    * eval_derivate_poly(domain_h, col_val)
+                )
                 val_vec.append(val)
                 count += 1
 
@@ -82,12 +100,19 @@ class Indexer:
 
         # Now row_vec represents the evaluations of domain_k
         PolyEvalRep_k = polynomialsEvalRep(Fp, domain_k[1], len(domain_k))
-        row_poly = PolyEvalRep_k(domain_k, row_vec).to_coeffs()
-        col_poly = PolyEvalRep_k(domain_k, col_vec).to_coeffs()
-        val_poly = PolyEvalRep_k(domain_k, val_vec).to_coeffs()
+        row_poly = PolyEvalRep_k(domain_k, row_vec)
+        col_poly = PolyEvalRep_k(domain_k, col_vec)
+        val_poly = PolyEvalRep_k(domain_k, val_vec)
 
         # print(row_poly)
-        return row_poly, col_poly, val_poly
+        return (
+            row_poly.to_coeffs(),
+            col_poly.to_coeffs(),
+            val_poly.to_coeffs(),
+            row_poly,
+            col_poly,
+            val_poly,
+        )
 
     """
 	Index a circuit
@@ -107,39 +132,45 @@ class Indexer:
         # Represents the expanded domain: For polycommit optimization
         domain_b = self.get_evaluation_domain(6 * len(domain_k) - 6)
 
-        row_poly, col_poly, val_poly = self.matrix_to_polys(
-            domain_k, domain_h, domain_x, domain_b
-        )
+        (
+            row_poly,
+            col_poly,
+            val_poly,
+            row_poly_evals,
+            col_poly_evals,
+            val_poly_evals,
+        ) = self.matrix_to_polys(domain_k, domain_h, domain_x, domain_b)
 
-        # The verifier key for polycommit
-        pc_verifier_key = self.universal_srs[0]
-        # The commit key for the polycommit
-        pc_commiter_key = self.universal_srs
 
         # Create commitments
-        row_poly_commit = evaluate_in_exponent(pc_commiter_key, row_poly)
-        col_poly_commit = evaluate_in_exponent(pc_commiter_key, col_poly)
-        val_poly_commit = evaluate_in_exponent(pc_commiter_key, val_poly)
+        row_poly_commit = self.pc.commit(row_poly)
+        col_poly_commit = self.pc.commit(col_poly)
+        val_poly_commit = self.pc.commit(val_poly)
 
         # Indexer verification key
         indexer_vk = (
             row_poly_commit,
             col_poly_commit,
             val_poly_commit,
-            pc_verifier_key,
+            self.pc,
             domain_h,
             domain_k,
             domain_x,
             domain_b,
         )
         # Indexer public key
+        self.row_poly = row_poly
+        self.col_poly = col_poly
+        self.val_poly = val_poly
         indexer_pk = (
             self.U,
             row_poly,
             col_poly,
             val_poly,
-            pc_verifier_key,
-            pc_commiter_key,
+            row_poly_evals,
+            col_poly_evals,
+            val_poly_evals,
+            self.pc,
             domain_h,
             domain_k,
             domain_x,

@@ -35,6 +35,10 @@ class SS_BLS12_381:
         assert type(other) is SS_BLS12_381
         return SS_BLS12_381(add(self.m1, other.m1), add(self.m2, other.m2))
 
+    def __sub__(self, other):
+        assert type(other) is SS_BLS12_381
+        return SS_BLS12_381(add(self.m1, neg(other.m1)), add(self.m2, neg(other.m2)))
+
     def __mul__(self, x):
         assert type(x) in (int, Fp)
         if type(x) is Fp:
