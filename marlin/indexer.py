@@ -28,6 +28,21 @@ def eval_derivate_poly(domain, x):
 
 
 """
+Evaluate the derivate polynomial of domain at x
+u_S(X, X) = |S|*X**(|S|−1)
+requires only log(|S|) time to evaluate.
+"""
+
+
+def eval_derivate_poly_diff_inputs(domain, x, y):
+    assert type(x) is Fp and type(y) is Fp
+    assert x != y
+    num = x ** len(domain) - y ** len(domain)
+    denom = x - y
+    return num / denom
+
+
+"""
 Offline Indexer for Marlin
 """
 
@@ -140,7 +155,6 @@ class Indexer:
             col_poly_evals,
             val_poly_evals,
         ) = self.matrix_to_polys(domain_k, domain_h, domain_x, domain_b)
-
 
         # Create commitments
         row_poly_commit = self.pc.commit(row_poly)
