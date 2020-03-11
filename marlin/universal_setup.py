@@ -16,7 +16,7 @@ class UniversalSetup:
         self.max_non_zero = max_non_zero
 
         self.max_degree = nearestPowerOfTwo(
-            max(max_constraints, max_variables, max_non_zero)
+            max(max_constraints * 6, max_constraints, max_variables, max_non_zero)
         )
         # Find the max degree of the polycommit scheme we
         # want to support
