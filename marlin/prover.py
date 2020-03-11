@@ -26,14 +26,13 @@ def eval_vanishing_poly(domain, val):
 
 
 class Prover:
-    def __init__(self, stmt_assignment, witness_assignment, index_pk, index_vk):
-        # Mapping from statement wires to
-        # correponding inputs by prover
-        self.stmt_assignment = stmt_assignment
+    def __init__(self, index_pk, index_vk):
+        self.stmt_assignment = None
         # Witness assignment
-        self.witness_assignment = witness_assignment
+        self.witness_assignment = None
         # Full a vector
-        self.a = self.stmt_assignment + self.witness_assignment
+        self.a = None
+        # Parse index_pk
         (
             self.U,
             self.row_poly,
@@ -81,6 +80,10 @@ class Prover:
         # Precompute vanishing poly over K in PolyEvalRep form
         vanish_h = vanishing_poly(len(self.domain_h))
         self.vanish_h = self.PolyEvalRep_h2.from_coeffs(vanish_h)
+
+        # Precompute vanish_x over H
+        vanish_x = vanishing_poly(n=len(self.domain_x))
+        self.vanish_x = self.PolyEvalRep_h.from_coeffs(vanish_x)
 
     def first_round_prover(self):
         # In the first round, prover needs to commit
@@ -136,7 +139,7 @@ class Prover:
 
         # This must be divisble vanishing polynomial over domain_x
         # because of our construction.
-        x_vanishing_poly = vanishing_poly(n=len(self.domain_x))
+        x_vanishing_poly = self.vanish_x.to_coeffs()
         w_poly = self.PolyEvalRep_h.divideWithCoset(
             a_full_poly.to_coeffs(), x_vanishing_poly
         )
@@ -312,6 +315,10 @@ class Prover:
 
         self.g3_poly = self.PolyEvalRep_k.from_coeffs(g3)
 
+        assert self.f3_poly.to_coeffs() == Poly(
+            [Fp(0), Fp(1)]
+        ) * self.g3_poly.to_coeffs() + sigma3 / Fp(len(self.domain_k))
+
         """
 		Compute the polys a and b
 		"""
@@ -352,3 +359,128 @@ class Prover:
         fourth_round_oracles = h3, g3
 
         return fourth_round_oracles, sigma3
+
+    def prove(self, x, w, verifier):
+        # Mapping from statement wires to
+        # correponding inputs by prover
+        self.stmt_assignment = x
+        # Witness assignment
+        self.witness_assignment = w
+        # Full a vector
+        self.a = self.stmt_assignment + self.witness_assignment
+        """
+		Get the prover oracles for the first round, the orcales in this 
+		case are (v_poly and w_poly) representing U*a and a repectively
+		"""
+        first_round_oracles = self.first_round_prover()
+
+        # Commit to the prover first round oracles
+        (w_poly, v_poly, h0_poly) = first_round_oracles
+        w_poly_commit = self.pc.commit(w_poly)
+        v_poly_commit = self.pc.commit(v_poly)
+        h0_poly_commit = self.pc.commit(h0_poly)
+
+        # Get the verifier challenges alpha and eta
+        alpha = verifier.verifier_first_message()
+
+        second_round_oracles = self.prover_second_round(alpha)
+
+        (h1_poly, g1_poly) = second_round_oracles
+
+        h1_poly_commit = self.pc.commit(h1_poly)
+        g1_poly_commit = self.pc.commit(g1_poly)
+
+        beta1 = verifier.verifier_second_message()
+
+        third_round_oracles, sigma2 = self.prover_third_round(alpha, beta1)
+
+        h2_poly, g2_poly = third_round_oracles
+
+        h2_poly_commit = self.pc.commit(h2_poly)
+        g2_poly_commit = self.pc.commit(g2_poly)
+
+        beta2 = verifier.verifier_third_message()
+
+        fourth_round_oracles, sigma3 = self.prover_fourth_round(alpha, beta1, beta2)
+
+        h3_poly, g3_poly = fourth_round_oracles
+
+        h3_poly_commit = self.pc.commit(h3_poly)
+        g3_poly_commit = self.pc.commit(g3_poly)
+
+        beta3 = verifier.verifier_fourth_message()
+
+        """
+		h3(X)*vanish_k(X) = a(X) - b(X)*(X*G(X) + sigma3/|K|) at beta3
+		In the equation, needs to give oracle proofs for row, col, val, 
+		h and g at beta3
+		"""
+        h3_eval_at_beta3_proof = self.pc.create_witness(h3_poly, beta3)
+        g3_eval_at_beta3_proof = self.pc.create_witness(g3_poly, beta3)
+        row_eval_at_beta3_proof = self.pc.create_witness(self.row_poly, beta3)
+        col_eval_at_beta3_proof = self.pc.create_witness(self.col_poly, beta3)
+        val_eval_at_beta3_proof = self.pc.create_witness(self.val_poly, beta3)
+
+        """
+		r(alpa, X)*sigma3 = h2(X)*vanish_h(X) + X*g2(X) + sigma2/|H| at beta2
+		Again, the verifier can get other terms all by himself, he only
+		needs oracle access to h2 and g2 with eval proofs
+		"""
+        h2_eval_at_beta2_proof = self.pc.create_witness(h2_poly, beta2)
+        g2_eval_at_beta2_proof = self.pc.create_witness(g2_poly, beta2)
+
+        """
+		r(alpa, X)*V(X) - sigma2*w(X) = h1(X)*vanish_h(X) + X*g2(X) at beta1
+		Again, the verifier can get other terms all by himself, he only
+		needs oracle access to v, w, h1 and g1 with eval proofs
+		The verifier will extend w with this public input
+		to make sure that statements is indeed satisfied.
+		"""
+        h1_eval_at_beta1_proof = self.pc.create_witness(h1_poly, beta1)
+        g1_eval_at_beta1_proof = self.pc.create_witness(g1_poly, beta1)
+        v_eval_at_beta1_proof = self.pc.create_witness(v_poly, beta1)
+        w_eval_at_beta1_proof = self.pc.create_witness(w_poly, beta1)
+
+        """
+		The final rowcheck which is similar to babysnark, checking
+		whether v(X)*v(X) - 1 = h0(X)*vanish_h(X) at beta1.
+		We only need value of h0(X) at beta1
+		"""
+        h0_eval_at_beta1_proof = self.pc.create_witness(h0_poly, beta1)
+
+        poly_eval_proofs = (
+            row_eval_at_beta3_proof,
+            col_eval_at_beta3_proof,
+            val_eval_at_beta3_proof,
+            h3_eval_at_beta3_proof,
+            g3_eval_at_beta3_proof,
+            h2_eval_at_beta2_proof,
+            g2_eval_at_beta2_proof,
+            h1_eval_at_beta1_proof,
+            g1_eval_at_beta1_proof,
+            v_eval_at_beta1_proof,
+            w_eval_at_beta1_proof,
+            h0_eval_at_beta1_proof,
+        )
+
+        sum_checks = (sigma3, sigma2)
+
+        poly_commits = (
+            h3_poly_commit,
+            g3_poly_commit,
+            h2_poly_commit,
+            g2_poly_commit,
+            h1_poly_commit,
+            g1_poly_commit,
+            v_poly_commit,
+            w_poly_commit,
+            h0_poly_commit,
+        )
+
+        proof = (poly_commits, poly_eval_proofs, sum_checks)
+
+        print(
+            f"Successfully created Proof with {len(poly_commits)} PolyCommits, {len(sum_checks)} sumcheck, {len(poly_eval_proofs)} Eval proofs"
+        )
+
+        return proof
