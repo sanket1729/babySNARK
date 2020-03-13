@@ -50,9 +50,6 @@ Offline Indexer for Marlin
 class Indexer:
     def __init__(self, circuit, pc):
         self.pc = pc
-        # Calculating the entire circuit using random inputs
-        # Use the output as the statement, all other wires as witness
-        inputs = circuit.get_random_inputs()
         # The circuit here is already of the required format
         # The dirmension is adjusted to be 2^k for some k by adding
         # dummy constraints as square matrix is required where both
