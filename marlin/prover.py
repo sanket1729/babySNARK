@@ -66,7 +66,6 @@ class Prover:
         self.PolyEvalRep_h2 = polynomialsEvalRep(Fp, omega2, 2 * len(self.domain_h))
         roots2 = [omega2 ** i for i in range(2 * len(self.domain_h))]
 
-
         omega8 = get_omega(Fp, 8 * len(self.domain_h), seed=0)
         self.PolyEvalRep_h8 = polynomialsEvalRep(Fp, omega8, 8 * len(self.domain_h))
         # Saved as self.ONE to avoid recomputation
@@ -226,7 +225,9 @@ class Prover:
         self.q1 = self.PolyEvalRep_h8.from_coeffs(self.q1.to_coeffs())
         self.h1, self.g1_x = divmod(self.q1, self.vanish_h_h8)
 
-        assert ((self.h1 * self.vanish_h_h8) + self.g1_x).to_coeffs() == self.q1.to_coeffs()
+        assert (
+            (self.h1 * self.vanish_h_h8) + self.g1_x
+        ).to_coeffs() == self.q1.to_coeffs()
         h1 = self.h1.to_coeffs()
         g1_x = self.g1_x.to_coeffs()
 
@@ -283,8 +284,9 @@ class Prover:
 
         self.q2 = self.PolyEvalRep_h8.from_coeffs(self.q2.to_coeffs())
         self.h2, self.g2_x_plus_sigma2 = divmod(self.q2, self.vanish_h_h8)
-        assert ((self.h2*self.vanish_h_h8) + self.g2_x_plus_sigma2).to_coeffs() == self.q2.to_coeffs()
-
+        assert (
+            (self.h2 * self.vanish_h_h8) + self.g2_x_plus_sigma2
+        ).to_coeffs() == self.q2.to_coeffs()
 
         h2 = self.h2.to_coeffs()
         g2_x_plus_sigma2 = self.g2_x_plus_sigma2.to_coeffs()

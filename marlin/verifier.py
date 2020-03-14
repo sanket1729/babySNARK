@@ -2,7 +2,12 @@
 The class to capture the state of the verifier in Marlin
 """
 
-from polynomial_evalrep import get_omega, polynomialsEvalRep, RowDictSparseMatrix, sparsePolynomialsOver
+from polynomial_evalrep import (
+    get_omega,
+    polynomialsEvalRep,
+    RowDictSparseMatrix,
+    sparsePolynomialsOver,
+)
 from ssbls12 import Fp, Poly, Group
 from babysnark import random_fp
 from prover import vanishing_poly
@@ -12,6 +17,7 @@ from indexer import eval_derivate_poly_diff_inputs
 Get a random Fp outside of elements in domain
 """
 
+
 def sample_fp_out_of_domain(domain):
     beta1 = random_fp()
     # Should not take long as domain_h <<< size of Fp
@@ -19,12 +25,16 @@ def sample_fp_out_of_domain(domain):
         beta1 = random_fp()
     return beta1
 
+
 SparsePoly = sparsePolynomialsOver(Fp)
 """
 Create a sparse Poly of the form x^n -1
 """
+
+
 def sparse_vanishing_poly(n):
     return SparsePoly({0: Fp(-1), n: Fp(1)})
+
 
 class Verifier:
     def __init__(self, index_vk):
@@ -48,7 +58,6 @@ class Verifier:
         self.sparse_vanish_h = sparse_vanishing_poly(len(self.domain_h))
         self.sparse_vanish_k = sparse_vanishing_poly(len(self.domain_k))
         self.sparse_vanish_x = sparse_vanishing_poly(len(self.domain_x))
-
 
     def verifier_first_message(self):
         # Verifier only samples alpha and eta in the first round

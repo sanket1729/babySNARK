@@ -189,7 +189,8 @@ def polynomialsEvalRep(field, omega, n):
 		def _scale(self, d):
 			# Scale the current polynomial by multiplying by x^d
 			poly = self.to_coeffs()
-			assert d + poly.degree() < n
+			assert d + poly.degree() < n, \
+			f"failed scaling by {d} of poly degree {poly.degree()} in domain {n}"
 			if d >=0:
 				new_poly = _poly_coeff([field(0)]*d + poly.coefficients)
 				return PolynomialEvalRep.from_coeffs(new_poly)
@@ -205,15 +206,23 @@ def polynomialsEvalRep(field, omega, n):
 			k = poly.degree() + 1
 			assert isPowerOfTwo(k) and poly.coefficients[-1] != field(0)
 
-			assert 2*k < n, "Multiplication Domain not sufficient for EvalRep"
+			assert 2*k <= n, "Multiplication Domain not sufficient for EvalRep"
 
 			if k == 1:
-				return PolynomialEvalRep.from_coeffs(_poly_coeff([field(1/ poly.coefficients[0])]))
+				return PolynomialEvalRep.from_coeffs(_poly_coeff([field(1)/ field(poly.coefficients[0])]))
 			else:
 				q = PolynomialEvalRep.from_coeffs(_poly_coeff(poly.coefficients[k//2:]))._reciprocal()
-				r = (q*2)._scale(3*k//2 - 2) - ((q*q)*self)
+				# print(q.to_coeffs(), "q poly")
+				r = ((q*2)._scale(3*k//2 - 2)) - ((q*q)*self)
+				# print(r.to_coeffs(), "r_prev coeffs")
+				ret = r._scale(-k + 2)
+				# print(ret.to_coeffs(), "r coeffs")
+				# print(self.to_coeffs(), "self coeffs")
 
-				return r._scale(-k + 2)
+				# Assert that the division holds without the remainder
+				x_2k_minus_2 = _poly_coeff([field(0)]*(2*k-2) + [field(1)])
+				# assert (self * ret).to_coeffs().coefficients[k-1:] == x_2k_minus_2.coefficients[k-1:], f"{(self * ret).to_coeffs()}"
+				return ret
 
 		# Takes in two polynomials in eval_rep form and returns a 
 		# qoutient and remainder
@@ -228,21 +237,25 @@ def polynomialsEvalRep(field, omega, n):
 			# Ensure that degree other is one less power of two
 			pow2 = nearestPowerOfTwo(other_poly.degree()+1)
 			extra_degree_reqd = pow2 - other_poly.degree() - 1
-			if extra_degree_reqd != 0:
-				other_polyrep = other._scale(extra_degree_reqd)
-				polyrep = self._scale(extra_degree_reqd)
+			print(extra_degree_reqd, pow2, other_poly.degree())
+
+			other_polyrep = other._scale(extra_degree_reqd)
+			polyrep = self._scale(extra_degree_reqd)
 
 			deg = polyrep.to_coeffs().degree()
 			other_deg = other_polyrep.to_coeffs().degree()
 
 			inv = other_polyrep._reciprocal()
+			
+			assert deg + inv.to_coeffs().degree() < n, "Domain size insufficient"
+
 			q = polyrep*inv
 			q = q._scale( -2 * other_deg)
 
 			# handle the case when deg> 2 * other_deg 
 			if deg > 2 * other_deg:
 				# t = x^2other_deg - inv*other
-				x_pow_2n = PolynomialEvalRep.from_coeffs(_poly_coeff( [field(0)]*other_deg + [field(1)]))
+				x_pow_2n = PolynomialEvalRep.from_coeffs(_poly_coeff( [field(0)]*(2*other_deg) + [field(1)]))
 				t2 = inv*other_polyrep
 				t = x_pow_2n - t2
 
@@ -251,6 +264,12 @@ def polynomialsEvalRep(field, omega, n):
 				q += q2
 
 			r = self - other*q
+
+			# Correctness Checks
+			# assert ((q*other) + r).to_coeffs() == self.to_coeffs()
+			# assert r.to_coeffs().degree() < other_poly.degree(), f"remainder degree {r.to_coeffs().degree()} \
+			# , Divisor degree {other_poly.degree()}"
+			
 			return q, r
 
 
