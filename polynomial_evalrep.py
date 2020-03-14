@@ -118,7 +118,6 @@ def polynomialsEvalRep(field, omega, n):
 			coeffs = [b / field(n) for b in fft_helper(ys, 1 / omega, field)]
 			return _poly_coeff(coeffs)
 
-		_lagrange_cache = {}
 
 		def __call__(self, x):
 			if type(x) is int:
@@ -126,20 +125,46 @@ def polynomialsEvalRep(field, omega, n):
 			assert type(x) is field
 			xs = _powers
 
-			def lagrange(x, xi):
-				# Let's cache lagrange values
-				if (x, xi) in PolynomialEvalRep._lagrange_cache:
-					return PolynomialEvalRep._lagrange_cache[(x, xi)]
+			# Efficient algorithm to get all lagrange polyevals when 
+			# all x's form a multiplicative subgroup
+			def get_all_lagrange_values(x):
+				
+				# Stores the evals of all lagrange_polys
+				lagrange_evals = []
+				x_pow_n = x**n
+				# First case is when x is itself in powers
+				if x_pow_n is field(1):
+					# Only 1 eval will be 1 rest, all will be zero
+					lagrange_evals = [field(0)]*n
+					lagrange_evals[_powers.index(x)] = field(1)
+					return lagrange_evals
+				else:
+					# x is not in poowers.
+					# Initial value of l is basically the product of all
+					# terms (x - xi) 
+					l = (x_pow_n - field(1))/field(n)
+					r = field(1)
+					ls = []
 
-				mul = lambda a, b: a * b
-				num = reduce(mul, [x - xj for xj in xs if xj != xi], field(1))
-				den = reduce(mul, [xi - xj for xj in xs if xj != xi], field(1))
-				PolynomialEvalRep._lagrange_cache[(x, xi)] = num / den
-				return PolynomialEvalRep._lagrange_cache[(x, xi)]
+					# Compute all the products and then multiply by
+					# inverse
+					for i in range(n):
+						lagrange_evals.append(field(1)/(x - r))
+						ls.append(l)
+						l *= omega
+						r *= omega
+
+					for i in range(n):
+						lagrange_evals[i] *= ls[i]
+
+					return lagrange_evals
 
 			y = field(0)
-			for xi, yi in self.evalmap.items():
-				y += yi * lagrange(x, xi)
+			lagrange_evals = get_all_lagrange_values(x)
+			for i, xi in enumerate(_powers):
+				if xi in self.evalmap:
+					yi = self.evalmap[xi]
+					y += yi * lagrange_evals[i]
 			return y
 
 		def __mul__(self, other):
