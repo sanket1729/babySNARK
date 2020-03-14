@@ -65,6 +65,10 @@ class Prover:
         omega2 = get_omega(Fp, 2 * len(self.domain_h), seed=0)
         self.PolyEvalRep_h2 = polynomialsEvalRep(Fp, omega2, 2 * len(self.domain_h))
         roots2 = [omega2 ** i for i in range(2 * len(self.domain_h))]
+
+
+        omega8 = get_omega(Fp, 8 * len(self.domain_h), seed=0)
+        self.PolyEvalRep_h8 = polynomialsEvalRep(Fp, omega8, 8 * len(self.domain_h))
         # Saved as self.ONE to avoid recomputation
         # TODO: Maybe seperate parts from prover and precompute
         self.ONE = self.PolyEvalRep_h2(roots2, [Fp(1) for _ in roots2])
@@ -80,6 +84,7 @@ class Prover:
         # Precompute vanishing poly over K in PolyEvalRep form
         vanish_h = vanishing_poly(len(self.domain_h))
         self.vanish_h = self.PolyEvalRep_h2.from_coeffs(vanish_h)
+        self.vanish_h_h8 = self.PolyEvalRep_h8.from_coeffs(self.vanish_h.to_coeffs())
 
         # Precompute vanish_x over H
         vanish_x = vanishing_poly(n=len(self.domain_x))
@@ -218,18 +223,21 @@ class Prover:
         # print(self.q1.to_coeffs().degree(), "q1 Degree")
         # print(len(self.domain_h), "DOmain H len")
 
-        # TODO: This is n**2, need to implement nlog(n)
-        h1, g1_x = divmod(self.q1.to_coeffs(), self.vanish_h.to_coeffs())
+        self.q1 = self.PolyEvalRep_h8.from_coeffs(self.q1.to_coeffs())
+        self.h1, self.g1_x = divmod(self.q1, self.vanish_h_h8)
+
+        assert ((self.h1 * self.vanish_h_h8) + self.g1_x).to_coeffs() == self.q1.to_coeffs()
+        h1 = self.h1.to_coeffs()
+        g1_x = self.g1_x.to_coeffs()
 
         # The constant term of g1_x must be zero
         assert g1_x.coefficients[0] == Fp(0)
 
         # Obtain g1 by dividing by x
         g1 = g1_x / Poly([Fp(0), Fp(1)])
+        self.g1 = self.PolyEvalRep_h2.from_coeffs(g1)
 
         second_round_oracles = (h1, g1)
-        self.g1 = self.PolyEvalRep_h2.from_coeffs(g1)
-        self.h1 = self.PolyEvalRep_h2.from_coeffs(h1)
 
         return second_round_oracles
 
@@ -273,8 +281,13 @@ class Prover:
 
         self.q2 = r_alpha_h2 * r_a_beta_h2
 
-        # TODO: This is n**2, need to implement nlog(n)
-        h2, g2_x_plus_sigma2 = divmod(self.q2.to_coeffs(), self.vanish_h.to_coeffs())
+        self.q2 = self.PolyEvalRep_h8.from_coeffs(self.q2.to_coeffs())
+        self.h2, self.g2_x_plus_sigma2 = divmod(self.q2, self.vanish_h_h8)
+        assert ((self.h2*self.vanish_h_h8) + self.g2_x_plus_sigma2).to_coeffs() == self.q2.to_coeffs()
+
+
+        h2 = self.h2.to_coeffs()
+        g2_x_plus_sigma2 = self.g2_x_plus_sigma2.to_coeffs()
 
         sigma2 = len(self.domain_h) * g2_x_plus_sigma2.coefficients[0]
         g2 = Poly(g2_x_plus_sigma2.coefficients[1:])
