@@ -63,7 +63,7 @@ def test_marlin():
 
     # Obtain proof for (x, w)
     # Verfier is also passed along for getting challenges
-    proof = prover.prove(x, w, verifier)
+    proof = prover.prove(x, w)
 
     # Finally assert the proof with the stored challenges
     # in verifier

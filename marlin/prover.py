@@ -6,6 +6,7 @@ invocations of the oracles.
 from polynomial_evalrep import get_omega, polynomialsEvalRep, RowDictSparseMatrix
 from ssbls12 import Fp, Poly, Group
 from indexer import eval_derivate_poly
+from fiat_shamir import FiatShamir
 
 # TODO: Change to sparse, not really required for prover
 def vanishing_poly(n):
@@ -13,6 +14,16 @@ def vanishing_poly(n):
     # the vanishing poly has a special form.
     #  t(X) = (X-1)(X-omega)....(X-omega^(n-1)) = X^n - 1
     return Poly([Fp(-1)] + [Fp(0)] * (n - 1) + [Fp(1)])
+
+"""
+Fiat Shamir outside of domain
+"""
+def sample_fp_out_of_domain(fs, domain, transcript):
+    beta = fs.get_challenge(transcript)
+    # Should not take long as domain_h <<< size of Fp
+    while beta in domain:
+        beta = fs.get_challenge(transcript)
+    return beta
 
 
 class Prover:
@@ -37,6 +48,12 @@ class Prover:
             self.domain_x,
             self.domain_b,
         ) = index_pk
+
+        (
+            self.row_poly_commit,
+            self.col_poly_commit,
+            self.val_poly_commit,
+        ) = index_vk[:3]
 
         self.PolyEvalRep_h = polynomialsEvalRep(
             Fp, self.domain_h[1], len(self.domain_h)
@@ -78,6 +95,24 @@ class Prover:
         # Precompute vanish_x over H
         vanish_x = vanishing_poly(n=len(self.domain_x))
         self.vanish_x = self.PolyEvalRep_h.from_coeffs(vanish_x)
+        self.fs = FiatShamir()
+
+    def verifier_first_challenge(self, transcript):
+        # Verifier only samples alpha and eta in the first round
+        alpha = self.fs.get_challenge(transcript)
+        return alpha
+
+    def verifier_second_challenge(self, transcript):
+        beta1 = sample_fp_out_of_domain(self.fs, self.domain_h, transcript)
+        return beta1
+
+    def verifier_third_challenge(self, transcript):
+        beta2 = sample_fp_out_of_domain(self.fs, self.domain_h, transcript)
+        return beta2
+
+    def verifier_fourth_challenge(self, transcript):
+        beta3 = self.fs.get_challenge(transcript)
+        return beta3
 
     def first_round_prover(self):
         # In the first round, prover needs to commit
@@ -365,7 +400,7 @@ class Prover:
 
         return fourth_round_oracles, sigma3
 
-    def prove(self, x, w, verifier):
+    def prove(self, x, w):
         # Mapping from statement wires to
         # correponding inputs by prover
         self.stmt_assignment = x
@@ -386,7 +421,8 @@ class Prover:
         h0_poly_commit = self.pc.commit(h0_poly)
 
         # Get the verifier challenges alpha and eta
-        alpha = verifier.verifier_first_message()
+        transcript_upto_round1 = [x, w_poly_commit, v_poly_commit, h0_poly_commit, self.row_poly_commit, self.col_poly_commit, self.val_poly_commit]
+        alpha = self.verifier_first_challenge(transcript_upto_round1)
 
         second_round_oracles = self.prover_second_round(alpha)
 
@@ -395,7 +431,8 @@ class Prover:
         h1_poly_commit = self.pc.commit(h1_poly)
         g1_poly_commit = self.pc.commit(g1_poly)
 
-        beta1 = verifier.verifier_second_message()
+        transcript_upto_round2 = transcript_upto_round1 + [h1_poly_commit, g1_poly_commit]
+        beta1 = self.verifier_second_challenge(transcript_upto_round2)
 
         third_round_oracles, sigma2 = self.prover_third_round(alpha, beta1)
 
@@ -404,7 +441,8 @@ class Prover:
         h2_poly_commit = self.pc.commit(h2_poly)
         g2_poly_commit = self.pc.commit(g2_poly)
 
-        beta2 = verifier.verifier_third_message()
+        transcript_upto_round3 = transcript_upto_round2 + [h2_poly_commit, g2_poly_commit, sigma2]
+        beta2 = self.verifier_third_challenge(transcript_upto_round3)
 
         fourth_round_oracles, sigma3 = self.prover_fourth_round(alpha, beta1, beta2)
 
@@ -413,7 +451,8 @@ class Prover:
         h3_poly_commit = self.pc.commit(h3_poly)
         g3_poly_commit = self.pc.commit(g3_poly)
 
-        beta3 = verifier.verifier_fourth_message()
+        transcript_upto_round4 = transcript_upto_round3 + [h3_poly_commit, g3_poly_commit, sigma3]
+        beta3 = self.verifier_fourth_challenge(transcript_upto_round4)
 
         """
 		h3(X)*vanish_k(X) = a(X) - b(X)*(X*G(X) + sigma3/|K|) at beta3
