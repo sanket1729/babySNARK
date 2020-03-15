@@ -15,9 +15,12 @@ def vanishing_poly(n):
     #  t(X) = (X-1)(X-omega)....(X-omega^(n-1)) = X^n - 1
     return Poly([Fp(-1)] + [Fp(0)] * (n - 1) + [Fp(1)])
 
+
 """
 Fiat Shamir outside of domain
 """
+
+
 def sample_fp_out_of_domain(fs, domain, transcript):
     beta = fs.get_challenge(transcript)
     # Should not take long as domain_h <<< size of Fp
@@ -49,11 +52,9 @@ class Prover:
             self.domain_b,
         ) = index_pk
 
-        (
-            self.row_poly_commit,
-            self.col_poly_commit,
-            self.val_poly_commit,
-        ) = index_vk[:3]
+        (self.row_poly_commit, self.col_poly_commit, self.val_poly_commit,) = index_vk[
+            :3
+        ]
 
         self.PolyEvalRep_h = polynomialsEvalRep(
             Fp, self.domain_h[1], len(self.domain_h)
@@ -421,7 +422,15 @@ class Prover:
         h0_poly_commit = self.pc.commit(h0_poly)
 
         # Get the verifier challenges alpha and eta
-        transcript_upto_round1 = [x, w_poly_commit, v_poly_commit, h0_poly_commit, self.row_poly_commit, self.col_poly_commit, self.val_poly_commit]
+        transcript_upto_round1 = [
+            x,
+            w_poly_commit,
+            v_poly_commit,
+            h0_poly_commit,
+            self.row_poly_commit,
+            self.col_poly_commit,
+            self.val_poly_commit,
+        ]
         alpha = self.verifier_first_challenge(transcript_upto_round1)
 
         second_round_oracles = self.prover_second_round(alpha)
@@ -431,7 +440,10 @@ class Prover:
         h1_poly_commit = self.pc.commit(h1_poly)
         g1_poly_commit = self.pc.commit(g1_poly)
 
-        transcript_upto_round2 = transcript_upto_round1 + [h1_poly_commit, g1_poly_commit]
+        transcript_upto_round2 = transcript_upto_round1 + [
+            h1_poly_commit,
+            g1_poly_commit,
+        ]
         beta1 = self.verifier_second_challenge(transcript_upto_round2)
 
         third_round_oracles, sigma2 = self.prover_third_round(alpha, beta1)
@@ -441,7 +453,11 @@ class Prover:
         h2_poly_commit = self.pc.commit(h2_poly)
         g2_poly_commit = self.pc.commit(g2_poly)
 
-        transcript_upto_round3 = transcript_upto_round2 + [h2_poly_commit, g2_poly_commit, sigma2]
+        transcript_upto_round3 = transcript_upto_round2 + [
+            h2_poly_commit,
+            g2_poly_commit,
+            sigma2,
+        ]
         beta2 = self.verifier_third_challenge(transcript_upto_round3)
 
         fourth_round_oracles, sigma3 = self.prover_fourth_round(alpha, beta1, beta2)
@@ -451,7 +467,11 @@ class Prover:
         h3_poly_commit = self.pc.commit(h3_poly)
         g3_poly_commit = self.pc.commit(g3_poly)
 
-        transcript_upto_round4 = transcript_upto_round3 + [h3_poly_commit, g3_poly_commit, sigma3]
+        transcript_upto_round4 = transcript_upto_round3 + [
+            h3_poly_commit,
+            g3_poly_commit,
+            sigma3,
+        ]
         beta3 = self.verifier_fourth_challenge(transcript_upto_round4)
 
         """

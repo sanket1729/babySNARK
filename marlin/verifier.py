@@ -17,6 +17,8 @@ from fiat_shamir import FiatShamir
 """
 Fiat Shamir outside of domain
 """
+
+
 def sample_fp_out_of_domain(fs, domain, transcript):
     beta = fs.get_challenge(transcript)
     # Should not take long as domain_h <<< size of Fp
@@ -111,13 +113,32 @@ class Verifier:
         store them in verifier state. So we don't need to 
         process any return value
         """
-        transcript_upto_round1 = [x, w_poly_commit, v_poly_commit, h0_poly_commit, self.row_poly_commit, self.col_poly_commit, self.val_poly_commit]
+        transcript_upto_round1 = [
+            x,
+            w_poly_commit,
+            v_poly_commit,
+            h0_poly_commit,
+            self.row_poly_commit,
+            self.col_poly_commit,
+            self.val_poly_commit,
+        ]
         self.alpha = self.verifier_first_challenge(transcript_upto_round1)
-        transcript_upto_round2 = transcript_upto_round1 + [h1_poly_commit, g1_poly_commit]
+        transcript_upto_round2 = transcript_upto_round1 + [
+            h1_poly_commit,
+            g1_poly_commit,
+        ]
         self.beta1 = self.verifier_second_challenge(transcript_upto_round2)
-        transcript_upto_round3 = transcript_upto_round2 + [h2_poly_commit, g2_poly_commit, sigma2]
+        transcript_upto_round3 = transcript_upto_round2 + [
+            h2_poly_commit,
+            g2_poly_commit,
+            sigma2,
+        ]
         self.beta2 = self.verifier_third_challenge(transcript_upto_round3)
-        transcript_upto_round4 = transcript_upto_round3 + [h3_poly_commit, g3_poly_commit, sigma3]
+        transcript_upto_round4 = transcript_upto_round3 + [
+            h3_poly_commit,
+            g3_poly_commit,
+            sigma3,
+        ]
         self.beta3 = self.verifier_fourth_challenge(transcript_upto_round4)
         """
 		All polycommits are proofs are properly indexed. 
