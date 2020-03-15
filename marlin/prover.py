@@ -7,22 +7,12 @@ from polynomial_evalrep import get_omega, polynomialsEvalRep, RowDictSparseMatri
 from ssbls12 import Fp, Poly, Group
 from indexer import eval_derivate_poly
 
-
+# TODO: Change to sparse, not really required for prover
 def vanishing_poly(n):
     # For the special case of evaluating at all n powers of omega,
     # the vanishing poly has a special form.
     #  t(X) = (X-1)(X-omega)....(X-omega^(n-1)) = X^n - 1
     return Poly([Fp(-1)] + [Fp(0)] * (n - 1) + [Fp(1)])
-
-
-"""
-Evaluate a vanishing poly over domain `domain` at val
-TODO:
-"""
-
-
-def eval_vanishing_poly(domain, val):
-    pass
 
 
 class Prover:

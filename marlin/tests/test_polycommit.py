@@ -1,10 +1,5 @@
 from ssbls12 import Fp, Poly, Group
 from polycommit import PolyCommit
-import sys, os
-
-sys.path.append(os.path.realpath(os.path.dirname(__file__) + "/../.."))
-sys.path.append(os.path.realpath(os.path.dirname(__file__) + "/.."))
-
 
 def test_polycommit():
     f = Poly([Fp(1), Fp(4), Fp(2), Fp(3)])
