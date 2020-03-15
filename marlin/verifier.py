@@ -22,8 +22,10 @@ Fiat Shamir outside of domain
 def sample_fp_out_of_domain(fs, domain, transcript):
     beta = fs.get_challenge(transcript)
     # Should not take long as domain_h <<< size of Fp
+    count = 1
     while beta in domain:
-        beta = fs.get_challenge(transcript)
+        beta = fs.get_challenge(transcript + [1]*count)
+        count += 1 
     return beta
 
 
