@@ -163,7 +163,6 @@ class BooleanCircuit(object):
             inputs[i] = choice([1, 0])
         return inputs
 
-
     """
     This is custom get_index function which is faster than calling 
     arr.index. We abuse this because we know the structure of the array
@@ -287,6 +286,7 @@ class BooleanCircuit(object):
     4) Populate the a_vector
     Returns the final `a` vector with statments and witness values
     """
+
     def solve_ssp_instance(self, inp, U):
         # Evaluate the circuit to process the values of all gates
         # from the inputs
@@ -296,7 +296,9 @@ class BooleanCircuit(object):
         a_vec = self.convert_wires_to_a_vec()
         # create the final witness with values in it
         # The first value is 1, others are according to the evaluated circuit
-        a_final = [Fp(1)] + [Fp(self.wire_values[a_vec[i]]) for i in range(1, len(a_vec))]
+        a_final = [Fp(1)] + [
+            Fp(self.wire_values[a_vec[i]]) for i in range(1, len(a_vec))
+        ]
 
         if self.make_square:
             n_prev = len(a_final)
@@ -308,10 +310,7 @@ class BooleanCircuit(object):
         else:
             assert len(a_final) == 1 + len(self.wire_values)
 
-        return (1 + len(self.statements_wires), a_final) 
-
-
-
+        return (1 + len(self.statements_wires), a_final)
 
     # Precondition: initialized, topologically sort
     # Postcondition: self.wire_values takes on values resulting from this evaluation

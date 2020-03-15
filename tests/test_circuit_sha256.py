@@ -69,7 +69,7 @@ def test_sha256():
     print(circuit_hash)
     assert python_lib_hash == circuit_hash
 
-    n_stmt, U = c.compile_to_unsolved_ssp(make_square= True)
+    n_stmt, U = c.compile_to_unsolved_ssp(make_square=True)
     c.solve_ssp_instance(inputs, U)
 
     python_lib_hash = hashlib.sha256(b"Hello").hexdigest()
